@@ -112,7 +112,7 @@ namespace LittleEmber.Audio
         public static void PlaySfx(AudioClip clip, float volume = 1f)
         {
             if (Instance == null || clip == null || Instance._sfxPool == null) return;
-            var src = NextSfx();
+            var src = Instance.NextSfx();
             src.pitch = 1f;
             src.PlayOneShot(clip, volume);
         }
@@ -124,7 +124,7 @@ namespace LittleEmber.Audio
             var clip = ClipFor("Sfx/" + name);
             if (clip == null) return;
             float v = volume * Random.Range(0.92f, 1.05f); // subtle per-play variance
-            var src = NextSfx();
+            var src = Instance.NextSfx();
             src.pitch = Random.Range(0.95f, 1.06f);
             src.PlayOneShot(clip, v);
         }
