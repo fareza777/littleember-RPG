@@ -1,0 +1,39 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# Asset Store art pack — junctioned, licensed, never commit
+/Assets/Gif/
+
+# IDE
+.idea/
+.vs/
+.vscode/
+.vsconfig
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+
+# Unity session temp
+.utmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Crash / profiler
+crashlytics-build.properties
+*.stackdump
+Recorded Videos/
+
+Tools/
+Builds/
