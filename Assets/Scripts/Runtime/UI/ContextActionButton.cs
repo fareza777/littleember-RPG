@@ -39,8 +39,11 @@ namespace LittleEmber.UI
             if (show && label != null && label.text != current.label)
                 label.text = current.label;
 
-            if (show && button != null && button.ConsumePress())
+            // always drain the press buffer — a tap landed mid-dialogue would
+            // otherwise fire the instant the box closes and re-open it forever
+            if (button != null && button.ConsumePress() && show && current != null)
             {
+                Audio.AudioManager.PlaySfxName("ui", 0.6f);
                 try { current.Use(); }
                 catch (System.Exception e)
                 {

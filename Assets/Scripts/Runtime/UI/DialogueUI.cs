@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using LittleEmber.Audio;
 using LittleEmber.Player;
 
 namespace LittleEmber.UI
@@ -42,32 +43,56 @@ namespace LittleEmber.UI
 
         void Awake()
         {
-            if (panel != null) panel.SetActive(false);
+            // Dialogue roots are saved inactive; Awake is deferred until the first
+            // SetActive(true) inside Show() — self-hiding there would kill the box
+            // before it ever appears (IsOpen/controlsLocked stuck forever).
+            if (panel != null && !IsOpen) panel.SetActive(false);
         }
 
-        public void Show(DialogueLine[] dialogue, System.Action onClosed = null)
+        void OnDestroy()
         {
-            if (dialogue == null || dialogue.Length == 0 || IsOpen) return;
+            // scene unloaded with the box open — don't wedge talks in the next scene
+            if (IsOpen) IsOpen = false;
+        }
+
+        public bool Show(DialogueLine[] dialogue, System.Action onClosed = null)
+        {
+            if (dialogue == null || dialogue.Length == 0 || IsOpen) return false;
             // never soft-lock the player: refuse to open half-wired
             if (panel == null || nameText == null || bodyText == null)
             {
                 Debug.LogError($"[Dialogue] UI not fully wired (panel={panel != null}, name={nameText != null}, body={bodyText != null}) — talk aborted.");
-                return;
+                return false;
             }
             lines = dialogue;
             index = 0;
             this.onClosed = onClosed;
             IsOpen = true;
-            if (pip != null) pip.controlsLocked = true;
+            if (pip != null)
+            {
+                pip.controlsLocked = true;
+                if (pip.joystick != null) pip.joystick.Clear();
+            }
             panel.SetActive(true);
             panel.transform.SetAsLastSibling();
+            AudioManager.DuckMusic(true);
+            AudioManager.PlaySfxName("talk");
             StartLine();
+            PlayOpenAnim();
+            return true;
         }
 
         void Update()
         {
             // emergency escape (Android back button) — never trap the player
             if (IsOpen && Input.GetKeyDown(KeyCode.Escape)) Close();
+            // gentle blink on the continue ember once a line is fully typed
+            if (continueHint != null && continueHint.enabled)
+            {
+                var c = continueHint.color;
+                c.a = 0.55f + 0.45f * Mathf.Sin(Time.unscaledTime * 5f);
+                continueHint.color = c;
+            }
         }
 
         /// <summary>Called by the full-panel invisible button.</summary>
@@ -99,7 +124,8 @@ namespace LittleEmber.UI
             if (hasPortrait) portraitImage.sprite = line.portrait;
             if (continueHint != null) continueHint.enabled = false;
             if (typeRoutine != null) StopCoroutine(typeRoutine);
-            typeRoutine = StartCoroutine(TypeLine(line.text));
+            typing = false;
+            typeRoutine = StartCoroutine(TypeLine(line.text ?? ""));
         }
 
         IEnumerator TypeLine(string text)
@@ -107,6 +133,7 @@ namespace LittleEmber.UI
             typing = true;
             bodyText.text = "";
             int shown = 0;
+            int charsUntilBlip = 0;
             float timer = 0f;
             while (shown < text.Length)
             {
@@ -116,6 +143,18 @@ namespace LittleEmber.UI
                 {
                     shown = target;
                     bodyText.text = text.Substring(0, shown);
+                    // soft tick every few visible chars — classic JRPG voice blip
+                    if (--charsUntilBlip <= 0 && !char.IsWhiteSpace(text[shown - 1]))
+                    {
+                        charsUntilBlip = 3;
+                        AudioManager.PlaySfxName("blip", 0.45f);
+                    }
+                    // breathe on sentence punctuation instead of printing at a flat rate
+                    char tail = text[shown - 1];
+                    if (tail == '.' || tail == '!' || tail == '?' || tail == '—')
+                        timer -= charsPerSecond * 0.16f;
+                    else if (tail == ',' || tail == ';' || tail == ':')
+                        timer -= charsPerSecond * 0.08f;
                 }
                 yield return null;
             }
@@ -123,11 +162,38 @@ namespace LittleEmber.UI
             if (continueHint != null) continueHint.enabled = true;
         }
 
+        /// <summary>Panel slide-up + portrait pop on open (pure runtime, no scene wiring).</summary>
+        void PlayOpenAnim()
+        {
+            var inner = panel != null ? panel.transform.Find("Panel") : null;
+            if (inner == null) return;
+            var rt = inner as RectTransform;
+            if (rt == null) return;
+            StartCoroutine(SlideIn(rt));
+        }
+
+        IEnumerator SlideIn(RectTransform rt)
+        {
+            Vector2 basePos = rt.anchoredPosition;
+            float t = 0f;
+            const float dur = 0.22f;
+            while (t < dur)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / dur);
+                float ease = 1f - (1f - k) * (1f - k) * (1f - k);
+                rt.anchoredPosition = basePos + Vector2.down * (1f - ease) * 60f;
+                yield return null;
+            }
+            rt.anchoredPosition = basePos;
+        }
+
         void Close()
         {
             IsOpen = false;
-            panel.SetActive(false);
+            if (panel != null) panel.SetActive(false);
             if (pip != null) pip.controlsLocked = false;
+            AudioManager.DuckMusic(false);
             var cb = onClosed;
             onClosed = null;
             cb?.Invoke();

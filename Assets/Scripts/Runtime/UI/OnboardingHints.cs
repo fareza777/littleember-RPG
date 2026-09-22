@@ -84,6 +84,7 @@ namespace LittleEmber.UI
         void Advance()
         {
             if (_step >= Step.Done) return;
+            Audio.AudioManager.PlaySfxName("ui", 0.5f);
             _step++;
             _progress = 0f;
             if (_step == Step.Done)

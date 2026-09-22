@@ -35,10 +35,15 @@ namespace LittleEmber.UI
             if (handle != null) handle.anchoredPosition = v * radius;
         }
 
-        public void OnPointerUp(PointerEventData eventData)
+        public void OnPointerUp(PointerEventData eventData) => Clear();
+
+        /// <summary>Drop held input (dialogue lock, disable) — prevents sticky walking.</summary>
+        public void Clear()
         {
             Value = Vector2.zero;
             if (handle != null) handle.anchoredPosition = Vector2.zero;
         }
+
+        void OnDisable() => Clear();
     }
 }

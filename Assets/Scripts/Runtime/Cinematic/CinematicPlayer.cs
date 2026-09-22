@@ -80,6 +80,7 @@ namespace LittleEmber.Cine
 
         IEnumerator Play()
         {
+            AudioManager.DuckMusic(true); // prologue music sits under the VO
             for (int i = 0; i < panels.Count; i++)
             {
                 if (_skipAll) break;
@@ -91,6 +92,7 @@ namespace LittleEmber.Cine
             }
 
             AudioManager.StopVO();
+            AudioManager.DuckMusic(false);
             AdsManager.TryShowInterstitial();
             SceneFlow.Load(nextScene);
         }

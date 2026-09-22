@@ -22,6 +22,7 @@ namespace LittleEmber.World
             inter.onUse = () =>
             {
                 if (string.IsNullOrEmpty(targetScene)) return;
+                Audio.AudioManager.PlaySfxName("door");
                 SceneFlow.PendingSpawn = targetSpawn;
                 SceneFlow.ReturnSpawn = returnSpawn;
                 SceneFlow.Load(targetScene);

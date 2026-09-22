@@ -21,10 +21,13 @@ namespace LittleEmber.World
             inter.label = "TALK";
             inter.onUse = () =>
             {
-                if (dialogue == null || lines.Length == 0) return;
+                // if a box is already (or stuck-)open, refuse before pausing the NPC —
+                // pausing first and having Show() early-return would freeze them forever
+                if (dialogue == null || lines.Length == 0 || DialogueUI.IsOpen) return;
                 if (npc != null) npc.paused = true;
                 var d = dialogue;
-                d.Show(lines, () => { if (npc != null) npc.paused = false; });
+                bool opened = d.Show(lines, () => { if (npc != null) npc.paused = false; });
+                if (!opened && npc != null) npc.paused = false;
             };
         }
     }

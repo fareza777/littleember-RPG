@@ -24,6 +24,7 @@ namespace LittleEmber.World
             if (other.GetComponentInParent<PipController>() == null) return;
             if (string.IsNullOrEmpty(targetScene)) return;
             cooldown = 999f;
+            Audio.AudioManager.PlaySfxName("door");
             SceneFlow.PendingSpawn = SceneFlow.ReturnSpawn ?? targetSpawn;
             SceneFlow.ReturnSpawn = null;
             SceneFlow.Load(targetScene);

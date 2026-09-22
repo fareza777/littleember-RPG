@@ -1,5 +1,9 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using LittleEmber.Audio;
 using LittleEmber.Combat;
+using LittleEmber.Core;
 using LittleEmber.UI;
 
 namespace LittleEmber.Player
@@ -191,7 +195,9 @@ namespace LittleEmber.Player
             }
             vel += knockVelocity;
             knockVelocity = Vector2.Lerp(knockVelocity, Vector2.zero, 10f * Time.fixedDeltaTime);
-            rb.MovePosition(rb.position + vel * Time.fixedDeltaTime);
+            Vector2 before = rb.position;
+            rb.MovePosition(before + vel * Time.fixedDeltaTime);
+            TickFootsteps(before, before + vel * Time.fixedDeltaTime);
         }
 
         // ------------------------------------------------------------------ input
@@ -203,6 +209,9 @@ namespace LittleEmber.Player
                 moveInput = Vector2.zero;
                 blocking = false;
                 anim.SetBool(P_Block, false);
+                // eat buffered presses so a tap made during dialogue doesn't fire on unlock
+                if (attackButton != null) attackButton.ConsumePress();
+                if (rollButton != null) rollButton.ConsumePress();
                 return;
             }
             Vector2 keys = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
@@ -262,6 +271,7 @@ namespace LittleEmber.Player
             blocking = false;
             anim.SetBool(P_Block, false);
             anim.SetTrigger(P_Attack);
+            AudioManager.PlaySfxName("swing", 0.85f);
             AttackPressed?.Invoke();
         }
 
@@ -282,6 +292,7 @@ namespace LittleEmber.Player
 
         void DoAttackHit()
         {
+            bool hitSomething = false;
             Vector2 center = rb.position + Facing * attackReach;
             Collider2D[] hits = Physics2D.OverlapBoxAll(center, attackBoxSize, 0f);
             foreach (var h in hits)
@@ -289,8 +300,33 @@ namespace LittleEmber.Player
                 if (h.attachedRigidbody != null && h.attachedRigidbody.gameObject == gameObject) continue;
                 if (h.gameObject == gameObject) continue;
                 var target = h.GetComponentInParent<IDamageable>();
-                target?.ApplyDamage(1, Facing * 3f);
+                if (target == null) continue;
+                target.ApplyDamage(1, Facing * 3f);
+                hitSomething = true;
             }
+            if (hitSomething)
+            {
+                AudioManager.PlaySfxName("hit");
+                // micro hit-stop: reads as weight on a phone screen
+                if (hitStop != null) StopCoroutine(hitStop);
+                hitStop = StartCoroutine(HitStop(0.055f));
+            }
+        }
+
+        Coroutine hitStop;
+
+        IEnumerator HitStop(float t)
+        {
+            Time.timeScale = 0.08f;
+            yield return new WaitForSecondsRealtime(t);
+            Time.timeScale = 1f;
+            hitStop = null;
+        }
+
+        void OnDisable()
+        {
+            // scene unload mid-hit-stop must never leave the game frozen
+            if (Time.timeScale != 1f) Time.timeScale = 1f;
         }
 
         void TryRoll()
@@ -304,6 +340,7 @@ namespace LittleEmber.Player
             blocking = false;
             anim.SetBool(P_Block, false);
             anim.SetTrigger(P_Roll);
+            AudioManager.PlaySfxName("roll", 0.7f);
             RollPressed?.Invoke();
         }
 
@@ -336,6 +373,25 @@ namespace LittleEmber.Player
             knockVelocity = knockback * 2.2f;
             anim.SetBool(P_Block, false);
             anim.SetTrigger(P_Hit);
+            AudioManager.PlaySfxName("hurt");
+            SettingsData.Vibrate();
+            CameraWork.CameraFollow2D.Shake(0.12f, 0.18f);
+            if (hurtFlash != null) StopCoroutine(hurtFlash);
+            hurtFlash = StartCoroutine(FlashSprite());
+        }
+
+        SpriteRenderer _sr;
+        Coroutine hurtFlash;
+
+        IEnumerator FlashSprite()
+        {
+            if (_sr == null) _sr = GetComponentInChildren<SpriteRenderer>();
+            if (_sr == null) yield break;
+            var c = _sr.color;
+            _sr.color = new Color(3.2f, 0.9f, 0.9f, c.a); // hot red flash on the sprite material
+            yield return new WaitForSeconds(0.09f);
+            _sr.color = c;
+            hurtFlash = null;
         }
 
         void OnDied()
@@ -344,6 +400,7 @@ namespace LittleEmber.Player
             moveInput = Vector2.zero;
             anim.SetBool(P_Block, false);
             anim.SetBool(P_Dead, true);
+            AudioManager.PlaySfxName("die");
         }
 
         // ------------------------------------------------------------------ anim
@@ -359,6 +416,21 @@ namespace LittleEmber.Player
         {
             anim.SetFloat(P_Speed, speed01);
             anim.SetInteger(P_Orientation, Orientation);
+        }
+
+        // ------------------------------------------------------------------ footsteps
+
+        float _stepDist;
+        const float StepStride = 0.85f; // world units per footstep
+
+        void TickFootsteps(Vector2 from, Vector2 to)
+        {
+            if (state != State.Free) return;
+            _stepDist += (to - from).magnitude;
+            if (_stepDist < StepStride) return;
+            _stepDist = 0f;
+            bool indoors = SceneManager.GetActiveScene().name.StartsWith("Interior");
+            AudioManager.PlaySfxName(indoors ? "step_wood" : "step_grass", 0.55f);
         }
 
         void OnDrawGizmosSelected()

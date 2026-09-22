@@ -50,6 +50,7 @@ namespace LittleEmber.UI
             beginButton.onClick.AddListener(OnBegin);
             nameBackButton.onClick.AddListener(ShowMain);
             nameInput.onValueChanged.AddListener(_ => ValidateName());
+            UiSfx.HookAll();
 
             if (settings != null) settings.onBack = ShowMain;
             if (about != null) about.onBack = ShowMain;
